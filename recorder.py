@@ -256,6 +256,9 @@ class VideoRecorder:
         # Ensure video mode is prepared before starting loop
         self.camera.prepare_video_mode()
         seg_start = self.current_segment_start
+        video_file = None
+        audio_started = False
+        
         while self.recording:
             video_file = self.generate_video_filename()
             # Start a new chunk with optimized encoder settings
@@ -263,6 +266,7 @@ class VideoRecorder:
             output = FfmpegOutput(video_file)
             self.camera.picam2.start_recording(encoder, output)
             self.audio_recorder.start_segmented_recording()
+            audio_started = True
 
             # Wait until threshold is hit or user stops recording
             # Longer sleep interval to reduce CPU load
@@ -271,35 +275,65 @@ class VideoRecorder:
                     break
                 time.sleep(self.monitor_interval)  # Check less frequently
 
-            # Stop this chunk
+            # Stop this chunk - always stop even if recording was stopped early
             try:
                 self.camera.picam2.stop_recording()
             except Exception as e:
                 print("Error stopping recording in segmentation:", e)
+            
+            # Give a moment for the file to be written after stopping
+            time.sleep(0.5)
+            
             seg_end = datetime.datetime.now()
-            audio_file = self.audio_recorder.stop_segmented_recording()
-
-            merged_file = self.merge_video_audio(video_file, audio_file, seg_start, seg_end, None)
-            if merged_file:
-                segment_record = {
-                    "file": merged_file,
-                    "start": seg_start.strftime("%H:%M:%S"),
-                    "end": seg_end.strftime("%H:%M:%S"),
-                    "start_str": seg_start.strftime("%d%b%Y_%H%M%S").lower(),
-                    "end_str": seg_end.strftime("%d%b%Y_%H%M%S").lower()
-                }
-                self.segments.append(segment_record)
+            
+            # Stop audio recording
+            if audio_started:
+                try:
+                    audio_file = self.audio_recorder.stop_segmented_recording()
+                except Exception as e:
+                    print("Error stopping audio recording:", e)
+                    audio_file = None
+                audio_started = False
             else:
-                # If merging failed, just keep the raw video file
-                segment_record = {
-                    "file": video_file,
-                    "start": seg_start.strftime("%H:%M:%S"),
-                    "end": seg_end.strftime("%H:%M:%S"),
-                    "start_str": seg_start.strftime("%d%b%Y_%H%M%S").lower(),
-                    "end_str": seg_end.strftime("%d%b%Y_%H%M%S").lower()
-                }
-                self.segments.append(segment_record)
+                audio_file = None
 
+            # Process segment - wait a bit for file to be fully written if it was just created
+            # Give it a moment to ensure the file is written to disk
+            max_wait = 5  # Maximum seconds to wait for file
+            waited = 0
+            while waited < max_wait:
+                if os.path.exists(video_file):
+                    file_size = os.path.getsize(video_file)
+                    if file_size > 0:
+                        break
+                time.sleep(0.1)
+                waited += 0.1
+
+            # Process segment if video file exists and has content
+            if os.path.exists(video_file) and os.path.getsize(video_file) > 0:
+                merged_file = self.merge_video_audio(video_file, audio_file, seg_start, seg_end, None)
+                if merged_file and os.path.exists(merged_file):
+                    segment_record = {
+                        "file": merged_file,
+                        "start": seg_start.strftime("%H:%M:%S"),
+                        "end": seg_end.strftime("%H:%M:%S"),
+                        "start_str": seg_start.strftime("%d%b%Y_%H%M%S").lower(),
+                        "end_str": seg_end.strftime("%d%b%Y_%H%M%S").lower()
+                    }
+                    self.segments.append(segment_record)
+                elif os.path.exists(video_file):
+                    # If merging failed, just keep the raw video file
+                    segment_record = {
+                        "file": video_file,
+                        "start": seg_start.strftime("%H:%M:%S"),
+                        "end": seg_end.strftime("%H:%M:%S"),
+                        "start_str": seg_start.strftime("%d%b%Y_%H%M%S").lower(),
+                        "end_str": seg_end.strftime("%d%b%Y_%H%M%S").lower()
+                    }
+                    self.segments.append(segment_record)
+            else:
+                print(f"Warning: Video file {video_file} does not exist or is empty, skipping segment")
+            
             self.chunk_num += 1
             # Next chunk starts exactly when this one ended
             seg_start = seg_end
@@ -368,23 +402,47 @@ class VideoRecorder:
             if self.monitor_thread:
                 self.monitor_thread.join()
 
-            # If there's a final chunk still open, close it now
-            if self.current_video_file:
-                seg_end = datetime.datetime.now()
-                try:
-                    self.camera.picam2.stop_recording()
-                except Exception as e:
-                    print("Error stopping video recording on final segment:", e)
+            # Stop recording first - but give it a moment to ensure it started
+            # Wait a brief moment to ensure recording has actually started
+            time.sleep(0.5)
+            
+            try:
+                self.camera.picam2.stop_recording()
+            except Exception as e:
+                print("Error stopping video recording:", e)
 
-                # Add final segment record
-                segment_record = {
-                    "file": self.current_video_file,
-                    "start": self.current_segment_start.strftime("%H:%M:%S"),
-                    "end": seg_end.strftime("%H:%M:%S"),
-                    "start_str": self.current_segment_start.strftime("%d%b%Y_%H%M%S").lower(),
-                    "end_str": seg_end.strftime("%d%b%Y_%H%M%S").lower()
-                }
-                self.segments.append(segment_record)
+            # Give the file a moment to be fully written after stopping
+            time.sleep(0.5)
+
+            # If there's a final chunk still open, close it now
+            # Wait a bit for the file to be written to disk
+            if self.current_video_file:
+                max_wait = 5  # Maximum seconds to wait for file
+                waited = 0
+                while waited < max_wait:
+                    if os.path.exists(self.current_video_file):
+                        file_size = os.path.getsize(self.current_video_file)
+                        if file_size > 0:
+                            break
+                    time.sleep(0.1)
+                    waited += 0.1
+                
+                seg_end = datetime.datetime.now()
+                
+                # Add final segment record if file exists and has content
+                if os.path.exists(self.current_video_file) and os.path.getsize(self.current_video_file) > 0:
+                    segment_record = {
+                        "file": self.current_video_file,
+                        "start": self.current_segment_start.strftime("%H:%M:%S"),
+                        "end": seg_end.strftime("%H:%M:%S"),
+                        "start_str": self.current_segment_start.strftime("%d%b%Y_%H%M%S").lower(),
+                        "end_str": seg_end.strftime("%d%b%Y_%H%M%S").lower()
+                    }
+                    self.segments.append(segment_record)
+                else:
+                    print(f"Warning: Final video file {self.current_video_file} does not exist or is empty")
+            else:
+                print("Warning: No current video file set - recording may not have started properly")
 
         # Resume camera preview so image capture remains available
         self.camera.restore_preview()
