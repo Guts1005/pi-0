@@ -57,7 +57,7 @@ class Camera:
     def _configure_video(self):
         # Reduced resolution and frame rate for Pi Zero 2 W
         # 1280x720 @ 20fps is optimal balance between quality and performance
-        VIDEO_FRAMERATE = 20  # Reduced from default 30fps to 20fps for Pi Zero 2 W
+        VIDEO_FRAMERATE = 30  # Reduced from default 30fps to 20fps for Pi Zero 2 W  CHANGED TO 30 FPS
         
         video_config = self.picam2.create_video_configuration(
             transform=self.transform,
