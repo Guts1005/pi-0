@@ -15,7 +15,7 @@ class Camera:
         os.makedirs("Images", exist_ok=True)
 
         # Apply transform ONCE at initialization
-        self.transform = Transform(rotation=180)
+        self.transform = Transform(hflip=True, vflip=True)
         
         # Pi Zero 2 W optimized settings: Lower resolution to reduce CPU/GPU load
         # Preview: 1280x720 (720p) - sufficient for preview and reduces GPU load
@@ -84,7 +84,12 @@ class Camera:
         self._configure_preview()
 
         # Start preview widget
-        self.preview_widget = QGlPicamera2(self.picam2, keep_ar=True)
+        self.preview_widget = QGlPicamera2(
+            self.picam2,
+            keep_ar=True,
+            transform=Transform(rotation=180)
+        )
+
         self.picam2.start()
         self.preview_started = True
         return self.preview_widget
