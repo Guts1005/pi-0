@@ -99,6 +99,9 @@ class Camera:
             transform=Transform(rotation=180)
         )
 
+        # ⭐ FIX: FORCE ROTATION OF QGlPicamera2 PREVIEW
+        self.preview_widget.setRotation(180)
+
         self.picam2.start()
         self.preview_started = True
         return self.preview_widget
