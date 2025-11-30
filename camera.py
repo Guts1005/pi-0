@@ -39,19 +39,25 @@ class Camera:
         # Reduced resolution for Pi Zero 2 W: 1280x720 instead of 1640x1232
         # This reduces GPU load significantly while maintaining good preview quality
         config = self.picam2.create_preview_configuration(
-            transform=self.transform,
-            main={"size": (self.PREVIEW_WIDTH, self.PREVIEW_HEIGHT)},
-            buffer_count=2  # Reduced buffer count to save memory
+            main={
+                "size": (self.PREVIEW_WIDTH, self.PREVIEW_HEIGHT),
+                "transform": Transform(hflip=True, vflip=True)
+            },
+            buffer_count=2
         )
+
         self.picam2.configure(config)
 
     def _configure_still(self):
         # Use still configuration but limit quality for faster processing
         # Pi Zero 2 W can handle full resolution stills, but we'll optimize quality
         still_config = self.picam2.create_still_configuration(
-            transform=self.transform,
-            buffer_count=1  # Single buffer for still capture to save memory
+            main={
+                "transform": Transform(hflip=True, vflip=True)
+            },
+            buffer_count=1
         )
+
         self.picam2.configure(still_config)
 
     def _configure_video(self):
@@ -60,10 +66,13 @@ class Camera:
         VIDEO_FRAMERATE = 60  # Reduced from default 30fps to 20fps for Pi Zero 2 W  CHANGED TO 30 FPS
         
         video_config = self.picam2.create_video_configuration(
-            transform=self.transform,
-            main={"size": (self.VIDEO_WIDTH, self.VIDEO_HEIGHT)},
-            buffer_count=2  # Reduced buffer count to save memory
+            main={
+                "size": (self.VIDEO_WIDTH, self.VIDEO_HEIGHT),
+                "transform": Transform(hflip=True, vflip=True)
+            },
+            buffer_count=2
         )
+
         
         # Set frame rate limits to enforce 20fps
         # FrameDurationLimits is in microseconds: 1e6 / framerate
