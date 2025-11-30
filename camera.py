@@ -15,7 +15,7 @@ class Camera:
         os.makedirs("Images", exist_ok=True)
 
         # Apply transform ONCE at initialization
-        self.transform = Transform(hflip=True, vflip=True)
+        self.transform = Transform(hflip=False, vflip=False)
         
         # Pi Zero 2 W optimized settings: Lower resolution to reduce CPU/GPU load
         # Preview: 1280x720 (720p) - sufficient for preview and reduces GPU load
