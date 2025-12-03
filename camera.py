@@ -14,15 +14,15 @@ class Camera:
         self.image_counter = 1
         os.makedirs("Images", exist_ok=True)
 
-        # Apply transform ONCE at initialization
+        # Rotate?
         self.transform = Transform(hflip=True, vflip=True)
         
-        # Pi Zero 2 W optimized settings: Lower resolution to reduce CPU/GPU load
-        # Preview: 1280x720 (720p) - sufficient for preview and reduces GPU load
+        
+        # Current Photo res 
         self.PREVIEW_WIDTH = 1280
         self.PREVIEW_HEIGHT = 720
         
-        # Video: 1280x720 @ 20fps max - optimal for Pi Zero 2 W
+        # Current Video res
         self.VIDEO_WIDTH = 1280
         self.VIDEO_HEIGHT = 720
         
@@ -36,8 +36,6 @@ class Camera:
             pass
 
     def _configure_preview(self):
-        # Reduced resolution for Pi Zero 2 W: 1280x720 instead of 1640x1232
-        # This reduces GPU load significantly while maintaining good preview quality
         config = self.picam2.create_preview_configuration(
             main={
                 "size": (self.PREVIEW_WIDTH, self.PREVIEW_HEIGHT),
@@ -61,9 +59,8 @@ class Camera:
         self.picam2.configure(still_config)
 
     def _configure_video(self):
-        # Reduced resolution and frame rate for Pi Zero 2 W
-        # 1280x720 @ 20fps is optimal balance between quality and performance
-        VIDEO_FRAMERATE = 60  # Reduced from default 30fps to 20fps for Pi Zero 2 W  CHANGED TO 30 FPS
+        # 1280x720 @ 60fps
+        VIDEO_FRAMERATE = 60  
         
         video_config = self.picam2.create_video_configuration(
             main={
@@ -74,7 +71,6 @@ class Camera:
         )
 
         
-        # Set frame rate limits to enforce 20fps
         # FrameDurationLimits is in microseconds: 1e6 / framerate
         frame_duration = int(1e6 // VIDEO_FRAMERATE)
         video_config["controls"]["FrameDurationLimits"] = (frame_duration, frame_duration)
